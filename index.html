@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seamless API Test Report</title>
+    <style>
+        :root {
+            --border-color: #ddd;
+            --header-bg: #f8f9fa;
+            --verified-true-bg: #28a745;
+            --verified-false-bg: #dc3545;
+            --step-failed-bg: #ffebee;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        header {
+            text-align: center;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #1a1a1a;
+        }
+        #pasteContainer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+        #jsonInput {
+            width: 100%;
+            height: 200px;
+            font-family: "Courier New", Courier, monospace;
+            font-size: 14px;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            resize: vertical;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+        #generateBtn, #exportBtn {
+            padding: 12px 25px;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            transition: background-color 0.2s;
+        }
+        #generateBtn {
+            background-color: #007bff;
+        }
+        #generateBtn:hover {
+            background-color: #0056b3;
+        }
+        #exportBtn {
+            background-color: var(--verified-true-bg);
+            display: none;
+        }
+        #exportBtn:hover {
+            background-color: #218838;
+        }
+        #summaryContainer {
+            background-color: var(--header-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+            display: none;
+        }
+        #summaryContainer h2 {
+            margin-top: 0;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 10px;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 10px 20px;
+            align-items: center;
+        }
+        .summary-grid dt {
+            font-weight: bold;
+            color: #555;
+        }
+        .summary-grid dd {
+            margin: 0;
+            font-family: "Courier New", Courier, monospace;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 30px;
+        }
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+        thead th {
+            background-color: var(--header-bg);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .scenario-header-row td {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: white;
+            padding: 12px 15px;
+        }
+        .verified-true { background-color: var(--verified-true-bg); }
+        .verified-false { background-color: var(--verified-false-bg); }
+        tr.step-failed {
+            background-color: var(--step-failed-bg);
+        }
+        pre {
+            background-color: #f1f1f1;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre;
+            overflow-x: auto;
+            max-width: 450px;
+            margin: 0;
+            font-family: "Courier New", Courier, monospace;
+            font-size: 0.9em;
+        }
+        #placeholder {
+            text-align: center;
+            color: #777;
+            padding: 40px;
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+        }
+        .error-message {
+            color: #dc3545;
+            font-weight: bold;
+            text-align: center;
+            padding: 20px;
+            border: 1px solid #dc3545;
+            background-color: #ffebee;
+            border-radius: 8px;
+        }
+
+        @media print {
+            @page {
+                size: landscape;
+                margin: 0.75in;
+            }
+            body {
+                font-size: 9pt;
+                max-width: 100%;
+            }
+            header { display: none; }
+            #summaryContainer {
+                border: none;
+                box-shadow: none;
+                page-break-after: always;
+            }
+            table {
+                margin-top: 0;
+                table-layout: fixed;
+            }
+            thead {
+                display: table-row-group;
+            }
+            tr, .scenario-header-row {
+                page-break-inside: avoid;
+            }
+            pre {
+                white-space: pre-wrap;
+                word-break: break-all;
+                max-width: 100%;
+                overflow: hidden;
+                border: 1px solid #eee;
+            }
+            .col-step { width: 7%; }
+            .col-request { width: 35%; }
+            .col-response { width: 35%; }
+            .col-verified { width: 7%; }
+            .col-http { width: 8%; }
+            .col-duration { width: 8%; }
+            .verified-true, .verified-false, tr.step-failed {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .scenario-header-row td {
+                color: white !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Seamless API Test Report</h1>
+        <div id="pasteContainer">
+            <textarea id="jsonInput" placeholder="Paste your response.json content here..."></textarea>
+            <div class="button-group">
+                <button id="generateBtn">Generate Report</button>
+                <button id="exportBtn">Export PDF</button>
+            </div>
+        </div>
+    </header>
+
+    <div id="summaryContainer"></div>
+
+    <main id="reportContainer">
+        <div id="placeholder">
+            <h2>Welcome!</h2>
+            <p>Paste your JSON content into the box above and click "Generate Report" to begin.</p>
+        </div>
+    </main>
+
+    <script>
+        const generateBtn = document.getElementById('generateBtn');
+        const jsonInput = document.getElementById('jsonInput');
+        const reportContainer = document.getElementById('reportContainer');
+        const summaryContainer = document.getElementById('summaryContainer');
+        const placeholder = document.getElementById('placeholder');
+        const exportBtn = document.getElementById('exportBtn');
+
+        // NEW: Variable to store the report's official timestamp
+        let reportTimestamp = null;
+
+        // NEW: Function to format the ISO date string from the report into a filename-friendly format
+        function formatDateStringForFilename(isoString) {
+            const date = new Date(isoString);
+            const pad = (num) => String(num).padStart(2, '0');
+            
+            // Use UTC methods to prevent timezone conversion
+            const yyyy = date.getUTCFullYear();
+            const mm = pad(date.getUTCMonth() + 1); // Month is 0-indexed
+            const dd = pad(date.getUTCDate());
+            const hh = pad(date.getUTCHours());
+            const min = pad(date.getUTCMinutes());
+            const ss = pad(date.getUTCSeconds());
+            
+            return `${yyyy}${mm}${dd}${hh}${min}${ss}`;
+        }
+
+        generateBtn.addEventListener('click', () => {
+            const rawJson = jsonInput.value;
+            if (!rawJson.trim()) {
+                alert("Please paste JSON content into the text area.");
+                return;
+            }
+
+            try {
+                const jsonContent = JSON.parse(rawJson);
+                
+                if (!jsonContent.data || !jsonContent.data.meta || !jsonContent.data.report) {
+                    throw new Error("The pasted JSON is valid, but it's missing the expected 'data.report' or 'data.meta' structure.");
+                }
+
+                // NEW: Store the timestamp from the report data
+                reportTimestamp = jsonContent.data.meta.date;
+
+                renderSummary(jsonContent.data.meta, jsonContent.data.client);
+                renderHtmlReport(jsonContent.data.report);
+                
+                summaryContainer.style.display = 'block';
+                placeholder.style.display = 'none';
+                exportBtn.style.display = 'inline-block';
+
+            } catch (error) {
+                summaryContainer.style.display = 'none';
+                placeholder.style.display = 'none';
+                reportContainer.innerHTML = `<div class="error-message"><strong>Failed to generate report.</strong><br>${error.message}</div>`;
+                exportBtn.style.display = 'none';
+            }
+        });
+        
+        exportBtn.addEventListener('click', () => {
+            if (!reportTimestamp) return; // Don't print if no report is loaded
+
+            const originalTitle = document.title;
+            // UPDATED: Use the new function with the stored timestamp
+            const timestamp = formatDateStringForFilename(reportTimestamp);
+            const newTitle = `Seamless-API-Test-Report-${timestamp}`;
+            document.title = newTitle;
+
+            window.addEventListener('afterprint', () => {
+                document.title = originalTitle;
+            }, { once: true });
+
+            window.print();
+        });
+        
+        function renderSummary(meta, client) {
+            summaryContainer.innerHTML = `
+                <h2>Report Summary</h2>
+                <dl class="summary-grid">
+                    <dt>Date (UTC):</dt>
+                    <dd>${meta.date}</dd>
+                    
+                    <dt>Total Scenarios:</dt>
+                    <dd>${meta.total}</dd>
+                    
+                    <dt>Verified Scenarios:</dt>
+                    <dd>${meta.verifiedScenarios}</dd>
+                    
+                    <dt>Brand Code:</dt>
+                    <dd>${client.brandCode}</dd>
+                    
+                    <dt>Effective URL:</dt>
+                    <dd>${client.effectiveUrl}</dd>
+                </dl>
+            `;
+        }
+
+        function renderHtmlReport(scenarios) {
+            reportContainer.innerHTML = ''; 
+
+            const table = document.createElement('table');
+            
+            table.innerHTML = `
+                <thead>
+                    <tr>
+                        <th class="col-step">Step</th>
+                        <th class="col-request">Request</th>
+                        <th class="col-response">Response</th>
+                        <th class="col-verified">Verified</th>
+                        <th class="col-http">HTTP Status</th>
+                        <th class="col-duration">Duration (ms)</th>
+                    </tr>
+                </thead>
+            `;
+            
+            const tbody = document.createElement('tbody');
+            
+            scenarios.forEach(scenario => {
+                const scenarioHeaderRow = tbody.insertRow();
+                scenarioHeaderRow.className = 'scenario-header-row';
+                const headerCell = scenarioHeaderRow.insertCell();
+                headerCell.colSpan = 6;
+                headerCell.textContent = `Scenario: ${scenario.scenario} (Verified: ${scenario.verified})`;
+                headerCell.classList.add(scenario.verified ? 'verified-true' : 'verified-false');
+
+                if (scenario.tasks && scenario.tasks.length > 0) {
+                    scenario.tasks.forEach(task => {
+                        const row = tbody.insertRow();
+                        if (task.verified === false) {
+                            row.className = 'step-failed';
+                        }
+                        
+                        row.innerHTML = `
+                            <td class="col-step">${task.step || 'N/A'}</td>
+                            <td class="col-request"><pre>${JSON.stringify(task.request, null, 2)}</pre></td>
+                            <td class="col-response"><pre>${JSON.stringify(task.response, null, 2)}</pre></td>
+                            <td class="col-verified">${task.verified}</td>
+                            <td class="col-http">${task.httpStatusCode}</td>
+                            <td class="col-duration">${task.duration}</td>
+                        `;
+                    });
+                } else {
+                    const row = tbody.insertRow();
+                    row.innerHTML = `<td colspan="6" style="text-align:center; color: #888;">No tasks in this scenario.</td>`;
+                }
+            });
+
+            table.appendChild(tbody);
+            reportContainer.appendChild(table);
+        }
+    </script>
+</body>
+</html>
